@@ -1,0 +1,230 @@
+---
+title: "Project 2"
+author: "Maggie Sweitzer"
+format: html
+editor: visual
+---
+
+## About Tab
+
+
+
+
+## Data Download Tab
+
+```{r}
+library(jsonlite)
+library(httr)
+library(tidyverse)
+library(purrr)
+```
+
+### Downloading Mosters Data
+
+Code chunk below will pull and format the first page of monsters data, but there are 57 pages.
+```{r}
+
+url <- "https://api.open5e.com/v1/monsters/?format=json"
+dnd_return <- httr::GET("https://api.open5e.com/v1/monsters/?format=json")
+dnd_parsed <- fromJSON(rawToChar(dnd_return$content))
+dnd_tbl <- as_tibble(dnd_parsed$results)
+print(dnd_tbl, n=50)
+```
+Code below creates a for loop to pull all pages of monsters. First it initializes a list to contain multiple urls (starting with the first one we created up above). Then it creates a "base" url that contains everything except page numbers. The for loop then pastes together the base_url with numbers 2:57, thereby creating a url and adding it to the list for each of the 57 pages. We then create a function called "get_url" that takes a url input and then goes through the steps of pulling data from the API and reformatting this to a tibble. Finally, we use the map_df function to apply this function across all of the urls contained in the url list, and to store these all in the dnd_monsters_tbl.
+
+```{r}
+
+urls <- list(url)
+base_url <- "https://api.open5e.com/v1/monsters/?format=json&page="
+
+for (i in 2:57){
+urls[[i]] <- paste0(base_url, i)
+}
+
+get_url <- function(url){
+  dnd_return <- httr::GET(url) 
+  dnd_parsed <- fromJSON(rawToChar(dnd_return$content))
+  dnd_tbl <- as_tibble(dnd_parsed$results)
+  dnd_monsters_tbl <- bind_rows(dnd_tbl)
+}
+
+dnd_monsters_tbl <- map_df(urls, get_url)
+print(dnd_monsters_tbl, n=100)
+```
+Now interrogating this data set to figure out what would be best for data exploration. First subsetting columns to get rid of extensive descriptions.
+
+```{r}
+dnd_monsters_tbl <- dnd_monsters_tbl |>
+  select(name, size, type, subtype, group, alignment, armor_class, armor_desc, hit_points, hit_dice, strength, dexterity, constitution, intelligence, wisdom, charisma)
+str(dnd_monsters_tbl)
+```
+Looking at categorical variables to see if these should be recoded as factors. Based on these results, would be best to work with size and type categories.
+```{r}
+unique(dnd_monsters_tbl$size)
+unique(dnd_monsters_tbl$type)
+unique(dnd_monsters_tbl$subtype)
+unique(dnd_monsters_tbl$group)
+unique(dnd_monsters_tbl$alignment)
+unique(dnd_monsters_tbl$armor_desc)
+```
+Create factor variables for size and type
+
+```{r}
+#Create a factor variable for size and type, then further select relevant columns
+dnd_monsters_factors <- dnd_monsters_tbl |>
+  mutate(sizeF = as.factor(size),
+         typeF = as.factor(type)) |>
+  select(name, sizeF, typeF, subtype, alignment, armor_class, hit_points, strength, dexterity, constitution, intelligence, wisdom, charisma) 
+
+dnd_monsters_factors$alignment <- tolower(dnd_monsters_factors$alignment)
+dnd_monsters_factors
+```
+
+Creating frequency tables for categorical variables
+```{r}
+
+dnd_monsters_factors |>
+  group_by(alignment) |>
+  summarize(count = n())
+
+dnd_monsters_factors |>
+  group_by(typeF) |>
+  summarize(count = n())
+
+dnd_monsters_factors |>
+  group_by(sizeF) |>
+  summarize(count = n())
+
+dnd_monsters_factors |>
+  group_by(sizeF, typeF) |>
+  summarize(count = n()) |>
+  pivot_wider(names_from = typeF, values_from = count)
+```
+
+Summarizing numerical variables
+```{r}
+dnd_monsters_factors |>
+  group_by(typeF) |>
+  summarize(across(where(is.numeric), 
+                   list("mean" = ~ mean(.x, na.rm = TRUE), 
+                        "median" = ~ median(.x, na.rm = TRUE)),
+                   .names = "{.fn}_{.col}"))
+dnd_monsters_factors |>
+  group_by(typeF) |>
+  summarize(corr = cor(intelligence, charisma))
+```
+### Downloading Magical Items Data (probably not actually useful)
+
+Code chunk below will pull and format the first page of magical items data, but there are 33 pages.
+```{r}
+
+url <- "https://api.open5e.com/v1/magicitems/?format=json"
+dnd_return <- httr::GET("https://api.open5e.com/v1/magicitems/?format=json")
+dnd_parsed <- fromJSON(rawToChar(dnd_return$content))
+dnd_tbl <- as_tibble(dnd_parsed$results)
+print(dnd_tbl, n=50)
+
+urls <- list(url)
+base_url <- "https://api.open5e.com/v1/magicitems/?format=json&page="
+
+for (i in 2:33){
+urls[[i]] <- paste0(base_url, i)
+}
+
+get_url <- function(url){
+  dnd_return <- httr::GET(url) 
+  dnd_parsed <- fromJSON(rawToChar(dnd_return$content))
+  dnd_tbl <- as_tibble(dnd_parsed$results)
+  dnd_items_tbl <- bind_rows(dnd_tbl)
+}
+
+dnd_items_tbl <- map_df(urls, get_url)
+dnd_items_tbl
+```
+Looking at categorical variables to see if these should be recoded as factors. Based on these results, would be best to work with size and type categories.
+
+```{r}
+str(dnd_items_tbl)
+
+unique(dnd_items_tbl$type)
+unique(dnd_items_tbl$rarity)
+```
+### Downloading Spells Data
+
+Code chunk below will pull and format the first page of monsters data, but there are 29 pages.
+```{r}
+
+url <- "https://api.open5e.com/v1/spells/?format=json"
+dnd_return <- httr::GET("https://api.open5e.com/v1/spells/?format=json")
+dnd_parsed <- fromJSON(rawToChar(dnd_return$content))
+dnd_tbl <- as_tibble(dnd_parsed$results)
+print(dnd_tbl, n=50)
+
+urls <- list(url)
+base_url <- "https://api.open5e.com/v1/spells/?format=json&page="
+
+for (i in 2:29){
+urls[[i]] <- paste0(base_url, i)
+}
+
+get_url <- function(url){
+  dnd_return <- httr::GET(url) 
+  dnd_parsed <- fromJSON(rawToChar(dnd_return$content))
+  dnd_tbl <- as_tibble(dnd_parsed$results)
+  dnd_spells_tbl <- bind_rows(dnd_tbl)
+}
+
+dnd_spells_tbl <- map_df(urls, get_url) |>
+  select(name, target_range_sort, components, duration, level_int, spell_level, school, dnd_class) 
+
+str(dnd_spells_tbl)
+unique(dnd_spells_tbl$duration)
+unique(dnd_spells_tbl$school)
+unique(dnd_spells_tbl$dnd_class)
+unique(dnd_spells_tbl$components)
+unique(dnd_spells_tbl$level_int)
+
+```
+
+
+```{r}
+#Create a factor variable for size and type, then further select relevant columns
+dnd_spells_tbl$school <- tolower(dnd_spells_tbl$school)
+unique(dnd_spells_tbl$school)
+
+dnd_spells_factors <- dnd_spells_tbl |>
+  mutate(schoolF = as.factor(school),
+         componentsF = as.factor(components)) |>
+  select(name, schoolF, componentsF, target_range_sort, level_int, spell_level, dnd_class) 
+
+dnd_spells_factors
+
+```
+Exploring spells data
+```{r}
+dnd_spells_factors |>
+  group_by(componentsF) |>
+  summarize(count = n())
+
+dnd_spells_factors |>
+  group_by(schoolF) |>
+  summarize(count = n())
+
+dnd_spells_factors |>
+  group_by(level_int, componentsF) |>
+  summarize(count = n()) |>
+  pivot_wider(names_from = level_int, values_from = count)
+
+dnd_spells_factors |>
+  group_by(level_int, schoolF) |>
+  summarize(count = n()) |>
+  pivot_wider(names_from = level_int, values_from = count)
+```
+
+
+
+## Data Exploration Tab
+
+
+
+
