@@ -7,6 +7,11 @@ editor: visual
 
 ## About Tab
 
+Possible API Query User inputs:
+Category = monsters or spells
+For monsters: trait = strength, intelligence, charisma
+For spells: group = class or components
+For both: rank = top or bottom
 
 
 
@@ -19,209 +24,189 @@ library(tidyverse)
 library(purrr)
 ```
 
-### Downloading Mosters Data
+### Initial Code to Query API for Monsters or Spells Data
 
-Code chunk below will pull and format the first page of monsters data, but there are 57 pages.
-```{r}
-
-url <- "https://api.open5e.com/v1/monsters/?format=json"
-dnd_return <- httr::GET("https://api.open5e.com/v1/monsters/?format=json")
-dnd_parsed <- fromJSON(rawToChar(dnd_return$content))
-dnd_tbl <- as_tibble(dnd_parsed$results)
-print(dnd_tbl, n=50)
-```
-Code below creates a for loop to pull all pages of monsters. First it initializes a list to contain multiple urls (starting with the first one we created up above). Then it creates a "base" url that contains everything except page numbers. The for loop then pastes together the base_url with numbers 2:57, thereby creating a url and adding it to the list for each of the 57 pages. We then create a function called "get_url" that takes a url input and then goes through the steps of pulling data from the API and reformatting this to a tibble. Finally, we use the map_df function to apply this function across all of the urls contained in the url list, and to store these all in the dnd_monsters_tbl.
+Code below creates a function (get_dnd_api) to pull all pages of data for monsters or spells, depending on user input for argument "category" (default = "monsters"). First it initializes a list to store multiple urls. Then it creates a "base" url that contains everything except page numbers. Next, an ifelse statement determines the number of pages needing to be pulled depending on whether monsters or spells were selected. A for loop then pastes together the base_url with numbers 1:n, thereby creating a url and adding it to the list for each page. We then create another function called "get_url" that takes a url input and then goes through the steps of pulling data from the API and reformatting this to a tibble. Finally, we use the map_df function to apply this function across all of the urls contained in the url list, and to store these all in the dnd_binded_tbl.
 
 ```{r}
 
-urls <- list(url)
-base_url <- "https://api.open5e.com/v1/monsters/?format=json&page="
+get_dnd_api <- function(category = "monsters"){
+  urls <- list()
+  base_url <- paste0(
+    "https://api.open5e.com/v1/", category, "/?format=json&page=")
 
-for (i in 2:57){
-urls[[i]] <- paste0(base_url, i)
+  ifelse(category %in% c("monsters"), 
+         n <- 57, 
+         n <- 29)
+  
+  for (i in 1:n){
+    urls[[i]] <- paste0(base_url, i)
+}
+  get_url <- function(url){
+    dnd_return <- httr::GET(url) 
+    dnd_parsed <- fromJSON(rawToChar(dnd_return$content))
+    dnd_tbl <- as_tibble(dnd_parsed$results)
+    dnd_binded_tbl <- bind_rows(dnd_tbl)
+}
+  dnd_binded_tbl <- map_df(urls, get_url)
 }
 
-get_url <- function(url){
-  dnd_return <- httr::GET(url) 
-  dnd_parsed <- fromJSON(rawToChar(dnd_return$content))
-  dnd_tbl <- as_tibble(dnd_parsed$results)
-  dnd_monsters_tbl <- bind_rows(dnd_tbl)
-}
-
-dnd_monsters_tbl <- map_df(urls, get_url)
-print(dnd_monsters_tbl, n=100)
+dnd_binded_tbl <- get_dnd_api("spells")
 ```
-Now interrogating this data set to figure out what would be best for data exploration. First subsetting columns to get rid of extensive descriptions.
+
+
+### Code to clean and compute variables for monsters data
+
+This code will: 1) change alignments to all lowercase to reduce number of categories; 2) convert size, type, and alignment to factors; 3) select the subset of relevant columns; 4) group by alignment and then filter out alignment factors with fewer than 30 monsters; 5) create new variables representing what we call the "moral" and "legal" aspects of alignment; 6) ungroup by alignment and then separate hit_dice variable into numerical components to calculate max and min damage
 
 ```{r}
-dnd_monsters_tbl <- dnd_monsters_tbl |>
-  select(name, size, type, subtype, group, alignment, armor_class, armor_desc, hit_points, hit_dice, strength, dexterity, constitution, intelligence, wisdom, charisma)
-str(dnd_monsters_tbl)
-```
-Looking at categorical variables to see if these should be recoded as factors. Based on these results, would be best to work with size and type categories.
-```{r}
-unique(dnd_monsters_tbl$size)
-unique(dnd_monsters_tbl$type)
-unique(dnd_monsters_tbl$subtype)
-unique(dnd_monsters_tbl$group)
-unique(dnd_monsters_tbl$alignment)
-unique(dnd_monsters_tbl$armor_desc)
-```
-Create factor variables for size and type
 
-```{r}
-#Create a factor variable for size and type, then further select relevant columns
-dnd_monsters_factors <- dnd_monsters_tbl |>
+dnd_binded_tbl$alignment <- tolower(dnd_binded_tbl$alignment)
+dnd_monsters_tbl <- dnd_binded_tbl |>
   mutate(sizeF = as.factor(size),
-         typeF = as.factor(type)) |>
-  select(name, sizeF, typeF, subtype, alignment, armor_class, hit_points, strength, dexterity, constitution, intelligence, wisdom, charisma) 
+         typeF = as.factor(type),
+         alignmentF = as.factor(alignment)) |>
+  select(name, sizeF, typeF, subtype, alignmentF, hit_points, hit_dice, strength, dexterity, constitution, intelligence, wisdom, charisma) |>
+  group_by(alignmentF) |>
+  filter(n() > 30) |>
+  mutate(legal = ifelse(
+    alignmentF %in% c("lawful good", "lawful neutral", "lawful evil"), "lawful",
+    ifelse(alignmentF %in% c("neutral good", "neutral", "neutral evil"), "neutral",
+           ifelse(alignmentF %in% c("chaotic good", "chaotic neutral", "chaotic evil"), "chaotic", "unaligned")))) |>
+  mutate(moral = ifelse(
+    alignmentF %in% c("chaotic good", "lawful good", "neutral good"), "good",
+                ifelse(alignmentF %in% c("chaotic neutral", "lawful neutral", "neutral"), "neutral",
+                       ifelse(alignmentF %in% c("chaotic evil", "lawful evil", "neutral evil"), "evil", "unaligned")))) |>
+  ungroup(alignmentF) |>
+  separate_wider_delim(hit_dice, "+", names=c("hd_count_die", "hd_plus"), 
+                       too_few = "align_start", cols_remove = FALSE) |>
+  separate_wider_delim(hd_count_die, "d", names=c("hd_count", "hd_die")) |>
+  mutate(hd_count = as.numeric(hd_count),
+         hd_die = as.numeric(hd_die), 
+         hd_plus = as.numeric(hd_plus)) |>
+  mutate(max_dmg = ifelse(
+    is.na(hd_die), hd_count,
+    ifelse(
+      is.na(hd_plus), hd_count*hd_die, (hd_count*hd_die)+hd_plus))) |>
+  mutate(min_dmg = ifelse(
+    is.na(hd_plus), hd_count, hd_count+hd_plus))
 
-dnd_monsters_factors$alignment <- tolower(dnd_monsters_factors$alignment)
-dnd_monsters_factors
+dnd_monsters_tbl 
 ```
+### Code to clean and compute variables for spells data
 
-Creating frequency tables for categorical variables
+This code will change schools to all lowercase to reduce redundancy, convert school and components variables to factors, and select relevant columns.
+
 ```{r}
 
-dnd_monsters_factors |>
-  group_by(alignment) |>
-  summarize(count = n())
+dnd_binded_tbl$school <- tolower(dnd_binded_tbl$school)
 
-dnd_monsters_factors |>
-  group_by(typeF) |>
-  summarize(count = n())
-
-dnd_monsters_factors |>
-  group_by(sizeF) |>
-  summarize(count = n())
-
-dnd_monsters_factors |>
-  group_by(sizeF, typeF) |>
-  summarize(count = n()) |>
-  pivot_wider(names_from = typeF, values_from = count)
-```
-
-Summarizing numerical variables
-```{r}
-dnd_monsters_factors |>
-  group_by(typeF) |>
-  summarize(across(where(is.numeric), 
-                   list("mean" = ~ mean(.x, na.rm = TRUE), 
-                        "median" = ~ median(.x, na.rm = TRUE)),
-                   .names = "{.fn}_{.col}"))
-dnd_monsters_factors |>
-  group_by(typeF) |>
-  summarize(corr = cor(intelligence, charisma))
-```
-### Downloading Magical Items Data (probably not actually useful)
-
-Code chunk below will pull and format the first page of magical items data, but there are 33 pages.
-```{r}
-
-url <- "https://api.open5e.com/v1/magicitems/?format=json"
-dnd_return <- httr::GET("https://api.open5e.com/v1/magicitems/?format=json")
-dnd_parsed <- fromJSON(rawToChar(dnd_return$content))
-dnd_tbl <- as_tibble(dnd_parsed$results)
-print(dnd_tbl, n=50)
-
-urls <- list(url)
-base_url <- "https://api.open5e.com/v1/magicitems/?format=json&page="
-
-for (i in 2:33){
-urls[[i]] <- paste0(base_url, i)
-}
-
-get_url <- function(url){
-  dnd_return <- httr::GET(url) 
-  dnd_parsed <- fromJSON(rawToChar(dnd_return$content))
-  dnd_tbl <- as_tibble(dnd_parsed$results)
-  dnd_items_tbl <- bind_rows(dnd_tbl)
-}
-
-dnd_items_tbl <- map_df(urls, get_url)
-dnd_items_tbl
-```
-Looking at categorical variables to see if these should be recoded as factors. Based on these results, would be best to work with size and type categories.
-
-```{r}
-str(dnd_items_tbl)
-
-unique(dnd_items_tbl$type)
-unique(dnd_items_tbl$rarity)
-```
-### Downloading Spells Data
-
-Code chunk below will pull and format the first page of monsters data, but there are 29 pages.
-```{r}
-
-url <- "https://api.open5e.com/v1/spells/?format=json"
-dnd_return <- httr::GET("https://api.open5e.com/v1/spells/?format=json")
-dnd_parsed <- fromJSON(rawToChar(dnd_return$content))
-dnd_tbl <- as_tibble(dnd_parsed$results)
-print(dnd_tbl, n=50)
-
-urls <- list(url)
-base_url <- "https://api.open5e.com/v1/spells/?format=json&page="
-
-for (i in 2:29){
-urls[[i]] <- paste0(base_url, i)
-}
-
-get_url <- function(url){
-  dnd_return <- httr::GET(url) 
-  dnd_parsed <- fromJSON(rawToChar(dnd_return$content))
-  dnd_tbl <- as_tibble(dnd_parsed$results)
-  dnd_spells_tbl <- bind_rows(dnd_tbl)
-}
-
-dnd_spells_tbl <- map_df(urls, get_url) |>
-  select(name, target_range_sort, components, duration, level_int, spell_level, school, dnd_class) 
-
-str(dnd_spells_tbl)
-unique(dnd_spells_tbl$duration)
-unique(dnd_spells_tbl$school)
-unique(dnd_spells_tbl$dnd_class)
-unique(dnd_spells_tbl$components)
-unique(dnd_spells_tbl$level_int)
-
-```
-
-
-```{r}
-#Create a factor variable for size and type, then further select relevant columns
-dnd_spells_tbl$school <- tolower(dnd_spells_tbl$school)
-unique(dnd_spells_tbl$school)
-
-dnd_spells_factors <- dnd_spells_tbl |>
+dnd_spells_tbl <- dnd_binded_tbl |>
   mutate(schoolF = as.factor(school),
          componentsF = as.factor(components)) |>
   select(name, schoolF, componentsF, target_range_sort, level_int, spell_level, dnd_class) 
 
-dnd_spells_factors
-
+dnd_spells_tbl
 ```
-Exploring spells data
+
+### Creating frequency tables for categorical monsters variables
 ```{r}
-dnd_spells_factors |>
+
+dnd_monsters_tbl |>
+  group_by(alignmentF) |>
+  summarize(count = n())
+
+dnd_monsters_tbl |>
+  group_by(typeF) |>
+  summarize(count = n())
+
+dnd_monsters_tbl |>
+  group_by(sizeF) |>
+  summarize(count = n())
+
+dnd_monsters_tbl |>
+  group_by(legal, typeF) |>
+  summarize(count = n()) |>
+  pivot_wider(names_from = typeF, values_from = count)
+```
+
+### Summarizing numerical monsters variables
+
+```{r}
+dnd_monsters_tbl |>
+  group_by(legal) |>
+  summarize(across(where(is.numeric), 
+                   list("mean" = ~ mean(.x, na.rm = TRUE), 
+                        "median" = ~ median(.x, na.rm = TRUE)),
+                   .names = "{.fn}_{.col}"))
+dnd_monsters_tbl |>
+  group_by(typeF) |>
+  summarize(corr = cor(intelligence, strength))
+```
+
+
+### Creating frequency tables for categorical spells variables
+
+```{r}
+dnd_spells_tbl |>
   group_by(componentsF) |>
   summarize(count = n())
 
-dnd_spells_factors |>
+dnd_spells_tbl |>
   group_by(schoolF) |>
   summarize(count = n())
 
-dnd_spells_factors |>
+dnd_spells_tbl |>
   group_by(level_int, componentsF) |>
   summarize(count = n()) |>
   pivot_wider(names_from = level_int, values_from = count)
 
-dnd_spells_factors |>
+dnd_spells_tbl |>
   group_by(level_int, schoolF) |>
   summarize(count = n()) |>
   pivot_wider(names_from = level_int, values_from = count)
 ```
 
 
+### Example Code for Building Plots
+
+```{r}
+#First run ggplot on data frame, which creates a plotting instance
+ggplot(data=app_data)
+#Then will add layers (geom or stat layers) and modify with layer "mapping" arguments (usually with aes())
+
+#Create instance, with slight data manipulation (drop_na) and set an aesthetic which defines the x-axis
+ggplot(data = app_data |>
+         drop_na(SexF), aes(x=SexF))
+
+#No data is plotted yet because we haven't given it any other info
+#Now we give it the geom_bar code to let it know we want a barplot
+#Note that ggplot uses + to add additional info
+
+ggplot(data = app_data |>
+         drop_na(SexF), aes(x=SexF)) +
+  geom_bar()
+
+#Can store base plot as an object and then just use + to add things from there
+g <- ggplot(data = app_data |>
+         drop_na(SexF), aes(x=SexF))
+g + geom_bar()  
+
+#Add label, use fill to also plot diagnosisF, and change label for legend
+#This does not remove na responses from DiagnosisF, as this was not included in the global aesthetics
+g + geom_bar() +
+  aes(fill = DiagnosisF) +
+  labs(x = "Sex") +
+  #change scale of the fill element, which they are considering a discrete variable; we will rename this as "Diagnosis"
+  scale_fill_discrete("Diagnosis") 
+
+#If we already have the summary data, we can override the default stat for geom_bar which is count
+ggplot(data = app_data |>
+         drop_na(SexF, DiagnosisF) |>
+         group_by(SexF, DiagnosisF) |>
+         summarize(count=n()), aes(x=SexF, y=count, fill=DiagnosisF)) +
+  geom_bar(stat = "identity")
+```
 
 ## Data Exploration Tab
 
