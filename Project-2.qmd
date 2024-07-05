@@ -9,10 +9,8 @@ editor: visual
 
 Possible API Query User inputs:
 Category = monsters or spells
-For monsters: trait = strength, intelligence, charisma
-For spells: group = class or components
-For both: rank = top or bottom
-
+For monsters: trait = strength, intelligence, charisma, dexterity
+For spells: group = level or components
 
 
 ## Data Download Tab
@@ -91,7 +89,6 @@ dnd_monsters_tbl <- dnd_binded_tbl |>
   mutate(min_dmg = ifelse(
     is.na(hd_plus), hd_count, hd_count+hd_plus))
 
-dnd_monsters_tbl 
 ```
 ### Code to clean and compute variables for spells data
 
@@ -100,16 +97,129 @@ This code will change schools to all lowercase to reduce redundancy, convert sch
 ```{r}
 
 dnd_binded_tbl$school <- tolower(dnd_binded_tbl$school)
-
 dnd_spells_tbl <- dnd_binded_tbl |>
   mutate(schoolF = as.factor(school),
-         componentsF = as.factor(components)) |>
-  select(name, schoolF, componentsF, target_range_sort, level_int, spell_level, dnd_class) 
-
-dnd_spells_tbl
+         componentsM = gsub('M', 'Material', components),
+         componentsMS = gsub('S', 'Somatic', componentsM),
+         componentsMSV = gsub('V', 'Verbal', componentsMS),
+         components_recode = gsub(', ', '&', componentsMSV),
+         Bard = ifelse(grepl("Bard", dnd_class), TRUE, FALSE),
+         Cleric = ifelse(grepl("Cleric", dnd_class), TRUE, FALSE),
+         Druid = ifelse(grepl("Druid", dnd_class), TRUE, FALSE),
+         Paladin = ifelse(grepl("Paladin", dnd_class), TRUE, FALSE),
+         Ranger = ifelse(grepl("Ranger", dnd_class), TRUE, FALSE),
+         Sorcerer = ifelse(grepl("Sorcerer", dnd_class), TRUE, FALSE),
+         Warlock = ifelse(grepl("Warlock", dnd_class), TRUE, FALSE),
+         Wizard = ifelse(grepl("Wizard", dnd_class), TRUE, FALSE)) |>
+  select(name, schoolF, components_recode, spell_level, Bard, Cleric,
+         Druid, Paladin, Ranger, Sorcerer, Warlock, Wizard) 
 ```
 
+### Contingency Table for Spells Data
+
+The code below provides a contingency table of count data on number of spells of each type that each class of character can perform. User input could be included to choose the minimum spell level (default = 0).
+```{r}
+
+dnd_spells_tbl |>
+  filter(spell_level > 8) |>
+  group_by(schoolF) |>
+  summarize(across(where(is.logical), 
+                   list("sum" = ~ sum(.x, na.rm = TRUE)), 
+                   .names = "{.col}")) 
+
+```
+
+### Creating venn diagram of components needed
+
+The code below creates a venn diagram for the components needed to cast each spell. Allow user input to choose spell level. 
+
+```{r}
+library(eulerr)
+library(ggforce)
+
+components <- dnd_spells_tbl |>
+  filter(spell_level > 0, 
+         spell_level < 2) |>
+  group_by(components_recode) |>
+  summarize(count = n())
+
+components_vec <- deframe(components)
+
+ggeulerr <- function(combinations = components_vec, show_quantities = TRUE, show_labels = FALSE, ...) {
+  data <-
+    eulerr::euler(combinations = combinations) %>%
+    plot(quantities = show_quantities) %>%
+    pluck("data")
+  
+  tibble() %>%
+    ggplot() +
+    ggforce::geom_ellipse(
+      data = data$ellipses %>% as_tibble(rownames = "Set"),
+      mapping = aes(x0 = h, y0 = k, a = a, b = b, angle = 0, 
+                    fill = Set),
+      alpha = 0.5
+    ) +
+    geom_text(
+      data = {
+        data$centers %>%
+          mutate(
+            label = labels %>%
+              map2(quantities, ~ {
+              if (!is.na(.x) && !is.na(.y) && show_labels) {
+                paste0(.x, "\n", sprintf(.y, fmt = "%.2g"))
+              } else if (!is.na(.x) && show_labels) {
+                .x
+              } else if (!is.na(.y)) {
+                .y
+              } else {
+                ""
+              }
+            })
+          )
+      },
+      mapping = aes(x = x, y = y, label = label)
+    ) +
+    theme(panel.grid = element_blank()) +
+    coord_fixed() +
+    scale_fill_hue() +
+    guides(fill = guide_legend(title = "Components Needed") 
+    )
+}
+
+ggeulerr()
+
+```
+
+### Create interactive bar graph displaying count of spells by school, allow user to specify class
+
+```{r}
+
+```
+
+
+### Creating frequency tables for categorical spells variables
+
+```{r}
+dnd_spells_tbl |>
+  group_by(componentsF) |>
+  summarize(count = n())
+
+dnd_spells_tbl |>
+  group_by(schoolF) |>
+  summarize(count = n())
+
+dnd_spells_tbl |>
+  group_by(level_int, componentsF) |>
+  summarize(count = n()) |>
+  pivot_wider(names_from = level_int, values_from = count)
+
+dnd_spells_tbl |>
+  group_by(level_int, schoolF) |>
+  summarize(count = n()) |>
+  pivot_wider(names_from = level_int, values_from = count)
+```
 ### Creating frequency tables for categorical monsters variables
+
 ```{r}
 
 dnd_monsters_tbl |>
@@ -142,70 +252,6 @@ dnd_monsters_tbl |>
 dnd_monsters_tbl |>
   group_by(typeF) |>
   summarize(corr = cor(intelligence, strength))
-```
-
-
-### Creating frequency tables for categorical spells variables
-
-```{r}
-dnd_spells_tbl |>
-  group_by(componentsF) |>
-  summarize(count = n())
-
-dnd_spells_tbl |>
-  group_by(schoolF) |>
-  summarize(count = n())
-
-dnd_spells_tbl |>
-  group_by(level_int, componentsF) |>
-  summarize(count = n()) |>
-  pivot_wider(names_from = level_int, values_from = count)
-
-dnd_spells_tbl |>
-  group_by(level_int, schoolF) |>
-  summarize(count = n()) |>
-  pivot_wider(names_from = level_int, values_from = count)
-```
-
-
-### Example Code for Building Plots
-
-```{r}
-#First run ggplot on data frame, which creates a plotting instance
-ggplot(data=app_data)
-#Then will add layers (geom or stat layers) and modify with layer "mapping" arguments (usually with aes())
-
-#Create instance, with slight data manipulation (drop_na) and set an aesthetic which defines the x-axis
-ggplot(data = app_data |>
-         drop_na(SexF), aes(x=SexF))
-
-#No data is plotted yet because we haven't given it any other info
-#Now we give it the geom_bar code to let it know we want a barplot
-#Note that ggplot uses + to add additional info
-
-ggplot(data = app_data |>
-         drop_na(SexF), aes(x=SexF)) +
-  geom_bar()
-
-#Can store base plot as an object and then just use + to add things from there
-g <- ggplot(data = app_data |>
-         drop_na(SexF), aes(x=SexF))
-g + geom_bar()  
-
-#Add label, use fill to also plot diagnosisF, and change label for legend
-#This does not remove na responses from DiagnosisF, as this was not included in the global aesthetics
-g + geom_bar() +
-  aes(fill = DiagnosisF) +
-  labs(x = "Sex") +
-  #change scale of the fill element, which they are considering a discrete variable; we will rename this as "Diagnosis"
-  scale_fill_discrete("Diagnosis") 
-
-#If we already have the summary data, we can override the default stat for geom_bar which is count
-ggplot(data = app_data |>
-         drop_na(SexF, DiagnosisF) |>
-         group_by(SexF, DiagnosisF) |>
-         summarize(count=n()), aes(x=SexF, y=count, fill=DiagnosisF)) +
-  geom_bar(stat = "identity")
 ```
 
 ## Data Exploration Tab
