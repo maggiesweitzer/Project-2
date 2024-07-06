@@ -49,7 +49,7 @@ get_dnd_api <- function(category = "monsters"){
   dnd_binded_tbl <- map_df(urls, get_url)
 }
 
-dnd_binded_tbl <- get_dnd_api("spells")
+dnd_binded_tbl <- get_dnd_api("monsters")
 ```
 
 
@@ -60,9 +60,9 @@ This code will: 1) change alignments to all lowercase to reduce number of catego
 ```{r}
 
 dnd_binded_tbl$alignment <- tolower(dnd_binded_tbl$alignment)
+dnd_binded_tbl$type <- tolower(dnd_binded_tbl$type)
 dnd_monsters_tbl <- dnd_binded_tbl |>
   mutate(sizeF = as.factor(size),
-         typeF = as.factor(type),
          alignmentF = as.factor(alignment)) |>
   select(name, sizeF, typeF, subtype, alignmentF, hit_points, hit_dice, strength, dexterity, constitution, intelligence, wisdom, charisma) |>
   group_by(alignmentF) |>
@@ -235,7 +235,7 @@ dnd_monsters_tbl |>
   summarize(count = n())
 
 dnd_monsters_tbl |>
-  group_by(legal, typeF) |>
+  group_by(moral, typeF) |>
   summarize(count = n()) |>
   pivot_wider(names_from = typeF, values_from = count)
 ```
@@ -252,7 +252,51 @@ dnd_monsters_tbl |>
 dnd_monsters_tbl |>
   group_by(typeF) |>
   summarize(corr = cor(intelligence, strength))
+
 ```
+
+### Graphs of Monsters Data
+
+```{r}
+ggplot(data = dnd_monsters_tbl, 
+       mapping = aes(x = intelligence, y = dexterity)
+) +
+  geom_point(mapping = aes(color =sizeF)) +
+  geom_smooth(method="lm")
+
+```
+### Box Plot of Hit Points of Monsters by Size
+
+```{r}
+ggplot(data = dnd_monsters_tbl, 
+       mapping = aes(x = sizeF, y = hit_points)
+) +
+  geom_boxplot()
+```
+### Box Plot of Hit Points of Monsters by Size
+
+```{r}
+ggplot(data = dnd_monsters_tbl, 
+       mapping = aes(x = typeF, y = charisma)
+) +
+  geom_boxplot()
+```
+### Bar Graph of Monster Count by Type
+```{r}
+g <- ggplot(data = dnd_monsters_tbl, aes(x=typeF))
+g + geom_bar() +
+  aes(fill = moral) +
+  theme(axis.text.x = element_text(angle = 45)) +
+    labs(
+    title = "Count of Monsters by Type and Alignment",
+    x = "Monster Type", y = "Number of Monsters",
+    fill = "Moral Alignment")
+  
+  
+  help(labs)
+  
+```
+
 
 ## Data Exploration Tab
 
