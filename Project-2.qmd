@@ -49,13 +49,13 @@ get_dnd_api <- function(category = "monsters"){
   dnd_binded_tbl <- map_df(urls, get_url)
 }
 
-dnd_binded_tbl <- get_dnd_api("monsters")
+dnd_data_tbl <- get_dnd_api("monsters")
 ```
 
 
 ### Code to clean and compute variables for monsters data
 
-This code will: 1) change alignments to all lowercase to reduce number of categories; 2) convert size, type, and alignment to factors; 3) select the subset of relevant columns; 4) group by alignment and then filter out alignment factors with fewer than 30 monsters; 5) create new variables representing what we call the "moral" and "legal" aspects of alignment; 6) ungroup by alignment and then separate hit_dice variable into numerical components to calculate max and min damage
+This code will: 1) change alignments to all lowercase to reduce number of categories; 2) convert size, and alignment to factors; 3) select the subset of relevant columns; 4) group by alignment and then filter out alignment factors with fewer than 30 monsters; 5) create new variables representing what we call the "moral" and "legal" aspects of alignment; 6) ungroup by alignment and then separate hit_dice variable into numerical components to calculate max and min damage
 
 ```{r}
 
@@ -64,7 +64,7 @@ dnd_binded_tbl$type <- tolower(dnd_binded_tbl$type)
 dnd_monsters_tbl <- dnd_binded_tbl |>
   mutate(sizeF = as.factor(size),
          alignmentF = as.factor(alignment)) |>
-  select(name, sizeF, typeF, subtype, alignmentF, hit_points, hit_dice, strength, dexterity, constitution, intelligence, wisdom, charisma) |>
+  select(name, sizeF, type, subtype, alignmentF, hit_points, hit_dice, strength, dexterity, constitution, intelligence, wisdom, charisma) |>
   group_by(alignmentF) |>
   filter(n() > 30) |>
   mutate(legal = ifelse(
@@ -92,7 +92,7 @@ dnd_monsters_tbl <- dnd_binded_tbl |>
 ```
 ### Code to clean and compute variables for spells data
 
-This code will change schools to all lowercase to reduce redundancy, convert school and components variables to factors, and select relevant columns.
+This code will change schools to all lowercase to reduce redundancy, convert school and components variables to factors, create separate columns for each character class with TRUE/FALSE indicator of whether or not they can perform theat spell, and select relevant columns.
 
 ```{r}
 
@@ -223,21 +223,21 @@ dnd_spells_tbl |>
 ```{r}
 
 dnd_monsters_tbl |>
-  group_by(alignmentF) |>
+  group_by(alignment) |>
   summarize(count = n())
 
 dnd_monsters_tbl |>
-  group_by(typeF) |>
+  group_by(type) |>
   summarize(count = n())
 
 dnd_monsters_tbl |>
-  group_by(sizeF) |>
+  group_by(size) |>
   summarize(count = n())
 
-dnd_monsters_tbl |>
-  group_by(moral, typeF) |>
+dnd_data_tbl |>
+  group_by(moral, type) |>
   summarize(count = n()) |>
-  pivot_wider(names_from = typeF, values_from = count)
+  pivot_wider(names_from = type, values_from = count)
 ```
 
 ### Summarizing numerical monsters variables
