@@ -283,7 +283,7 @@ ggplot(data = dnd_monsters_tbl,
 ```
 ### Bar Graph of Monster Count by Type
 ```{r}
-g <- ggplot(data = dnd_monsters_tbl, aes(x=typeF))
+g <- ggplot(data = dnd_monsters_tbl, aes(x=type))
 g + geom_bar() +
   aes(fill = moral) +
   theme(axis.text.x = element_text(angle = 45)) +

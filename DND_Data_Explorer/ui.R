@@ -66,12 +66,12 @@ tabsetPanel(
       conditionalPanel(
           condition = "input.plot == 'box'",
           selectInput("trait", "Choose a trait to consider",
-                      c("hit points" = "hit_points", "intelligence", "charisma", 
+                      c("hit points", "intelligence", "charisma", 
                         "strength", "dexterity"))),
       conditionalPanel(
           condition = "input.plot == 'scatter'",
           selectInput("primary_trait", "Choose a primary trait to consider",
-                      c("hit points" = "hit_points", "strength", "charisma"), 
+                      c("hit points", "strength", "charisma"), 
                       selected = "")),
           conditionalPanel(
             condition = "input.plot == 'scatter'", 
@@ -92,10 +92,10 @@ tabsetPanel(
         #              sliderInput("breakCount", "Break Count", min =))),
         
         # Show a plot of the generated distribution
-        mainPanel()
-          #plotOutput("distPlot"))
+        mainPanel(
+          plotOutput("plot")
       )
-    ),
+    )),
   tabPanel("Data Exploration-Spells",
          fluidPage(
            titlePanel("Old Faithful Geyser Data"),
