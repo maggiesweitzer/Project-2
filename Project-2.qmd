@@ -5,13 +5,7 @@ format: html
 editor: visual
 ---
 
-## About Tab
-
-Possible API Query User inputs:
-Category = monsters or spells
-For monsters: trait = strength, intelligence, charisma, dexterity
-For spells: group = level or components
-
+Note: This code represents initial static coding to build components for shiny app. Some further edits were made after incorporating into shiny, and code below may be incomplete and/or contain slightly different variable names.
 
 ## Data Download Tab
 
@@ -98,8 +92,7 @@ This code will change schools to all lowercase to reduce redundancy, convert sch
 
 dnd_data_tbl$school <- tolower(dnd_data_tbl$school)
 dnd_spells_tbl <- dnd_data_tbl |>
-  mutate(schoolF = as.factor(school),
-         componentsM = gsub('M', 'Material', components),
+  mutate(componentsM = gsub('M', 'Material', components),
          componentsMS = gsub('S', 'Somatic', componentsM),
          componentsMSV = gsub('V', 'Verbal', componentsMS),
          components_recode = gsub(', ', '&', componentsMSV),
@@ -115,6 +108,8 @@ dnd_spells_tbl <- dnd_data_tbl |>
          Druid, Paladin, Ranger, Sorcerer, Warlock, Wizard) 
 ```
 
+## Data Exploration - Spells
+
 ### Contingency Table for Spells Data
 
 The code below provides a contingency table of count data on number of spells of each type that each class of character can perform. User input could be included to choose the minimum spell level (default = 0).
@@ -122,7 +117,7 @@ The code below provides a contingency table of count data on number of spells of
 
 dnd_spells_tbl |>
   filter(spell_level > 8) |>
-  group_by(schoolF) |>
+  group_by(school) |>
   summarize(across(where(is.logical), 
                    list("sum" = ~ sum(.x, na.rm = TRUE)), 
                    .names = "{.col}")) 
@@ -184,7 +179,6 @@ ggeulerr <- function(combinations = components_vec, show_quantities = TRUE, show
     scale_fill_hue() +
     guides(fill = guide_legend(title = "Components Needed") 
     )
-  print(data$centers)
 }
 
 ggeulerr()
@@ -193,9 +187,7 @@ ggeulerr()
 
 ### Create interactive bar graph displaying count of spells by school, allow user to specify class
 
-```{r}
-
-```
+This was created directly in shiny.
 
 
 ### Creating frequency tables for categorical spells variables
@@ -206,7 +198,7 @@ dnd_spells_tbl |>
   summarize(count = n())
 
 dnd_spells_tbl |>
-  group_by(schoolF) |>
+  group_by(school) |>
   summarize(count = n())
 
 dnd_spells_tbl |>
@@ -215,10 +207,13 @@ dnd_spells_tbl |>
   pivot_wider(names_from = level_int, values_from = count)
 
 dnd_spells_tbl |>
-  group_by(spell_level, schoolF) |>
+  group_by(spell_level, school) |>
   summarize(count = n()) |>
   pivot_wider(names_from = spell_level, values_from = count)
 ```
+
+## Data Exploration - Monsters
+
 ### Creating frequency tables for categorical monsters variables
 
 ```{r}
@@ -297,43 +292,3 @@ g + geom_bar() +
   help(labs)
   
 ```
-
-
-## Data Exploration Tab
-
-```{r}
-class_tbl <- dnd_spells_tbl |>
-  group_by(spell_level) |>
-  summarize(across(where(is.logical),
-                   list("sum" = ~ sum(.x, na.rm = TRUE)),
-                   .names = "{.col}"))
-  
-  class_tbl <- dnd_spells_tbl |>
-  filter(spell_level > 8) |>
-  group_by(schoolF) |>
-  summarize(across(where(is.logical), 
-                   list("sum" = ~ sum(.x, na.rm = TRUE)), 
-                   .names = "{.col}")) 
-
-  ggplot(data = dnd_spells_tbl |>
-         group_by(spell_level) |>
-         summarize(across(where(is.logical),
-                          list("sum" = ~ sum(.x, na.rm = TRUE)), .names = "{.col}"))) +
-  geom_bar(stat = "identity") +
-    aes(x = "spell_level", y = "count()")
-
-  
-  ggplot(data = class_tbl |>
-           select("spell_level", "Bard")) +
-    aes(x = as.factor(spell_level), y = count) +
-    geom_bar(stat = "identity")
-  
-  
-  cor_val <- dnd_data_tbl |>
-         summarize(cor_val = cor(spell_level, target_range_sort))
-    #pull(cor_val) |>
-       paste0("The correlation between spell_level and target_range_sort is ", round(cor_val, 2))
-```
-
-
-

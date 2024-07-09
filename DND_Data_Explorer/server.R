@@ -1,7 +1,7 @@
 #######################################################
 ##Title: DND_Data_Explorers Server Script
 ##Author: Maggie Sweitzer
-##Date: July 6, 2024
+##Date: July 9, 2024
 ##Purpose: Server script for ST558 Project 2 Shiny App.
 ##This is the server logic of a Shiny web application. You can run the
 ##application by clicking 'Run App' above.
@@ -9,17 +9,20 @@
 
 source("helpers.R")
 
-#data_tbl <- read_csv("data.csv")
-
 shinyServer(function(input, output, session) {
+  #download selected data type in response to user pressing "download" button
+  #Note download_data function is specified in helper.R script and includes data cleaning
    data_tbl <- eventReactive(input$go, {
      download_data(input$data_type)
      })
-   
+  
+  #render a data table of the selected data once download is complete  
    output$data <- DT::renderDataTable({
      data_tbl()
      })
    
+##Rendering plots for Data Exploration - Monsters tab
+   #render bar plot if user selects this, with fill = user selection of factor
    output$bar <- renderPlot({
      if(input$plot == "bar"){
        g_bar <- ggplot(data_tbl()) + geom_bar() +
@@ -41,6 +44,7 @@ shinyServer(function(input, output, session) {
      } 
      })
    
+   #render box plot if user selects this, with y axis selected by user
    output$box <- renderPlot({
      if(input$plot == "box"){ 
        g_box <- ggplot(data_tbl()) + geom_boxplot(aes(x = type)) +
@@ -66,6 +70,9 @@ shinyServer(function(input, output, session) {
          }
      } 
      })
+   
+   #render scatter plot if user selects this, with x and y axes selected by user
+   #Note-inefficient code written before figuring out how to directly reference user input within the ggplot function
    output$scatter <- renderPlot({
      if(input$plot == "scatter"){
        g_scatter <- ggplot(data_tbl()) + geom_point() + 
@@ -114,6 +121,7 @@ shinyServer(function(input, output, session) {
    }
    })
    
+   #create line stating correlation for selected variables to display with scatterplot
    output$cor_text <- renderText({
      if(input$plot == "scatter"){
        cor_val <- data_tbl() |>
@@ -127,6 +135,8 @@ shinyServer(function(input, output, session) {
      }
    })
 
+##Rendering plots for Data Exploration - Spells tab
+   #render contingency table, with user input for minimum spell level to filter by
   output$spells_table <- renderTable({
       if(input$choice == "table"){
         level_min <- input$min
@@ -140,6 +150,7 @@ shinyServer(function(input, output, session) {
    }
   })
   
+  #render venn diagram plot referencing code from helper function
   output$venn_plot <- renderPlot({
      if(input$choice == "venn"){
        level_min <- input$min
@@ -154,7 +165,7 @@ shinyServer(function(input, output, session) {
      print(venn_diagram)
    }   
 })
-  
+  #render faceted bar plot from summarized data with user selected filter for character class
   output$class_plot <- renderPlot({
     if(input$choice == "bar2"){
      
