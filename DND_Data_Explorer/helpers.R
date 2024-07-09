@@ -69,8 +69,7 @@ clean_monsters <- function(dnd_binded_tbl){
 clean_spells <- function(dnd_binded_tbl){
   dnd_binded_tbl$school <- tolower(dnd_binded_tbl$school)
   dnd_spells_tbl <- dnd_binded_tbl |>
-    mutate(school = as.factor(school),
-        componentsM = gsub('M', 'Material', components),
+    mutate(componentsM = gsub('M', 'Material', components),
         componentsMS = gsub('S', 'Somatic', componentsM),
         componentsMSV = gsub('V', 'Verbal', componentsMS),
         components_recode = gsub(', ', '&', componentsMSV),
@@ -97,5 +96,48 @@ download_data <- function(category = "monsters") {
     }
   return(dnd_data_tbl)
   #write.csv(dnd_data_tbl, "data.csv")
+}
+
+#Function to create venn diagrams plot. (Slightly modified code copied from online example.) Calling function with no inputs will pull in "components_vec", which will be formatted via separate code to reflect the necessary inputs for the plots based on user input for which spell levels to restrict the data to. 
+
+ggeulerr <- function(combinations = components_vec, show_quantities = TRUE, show_labels = FALSE, ...) {
+  data <-
+    eulerr::euler(combinations = combinations) %>%
+    plot(quantities = show_quantities) %>%
+    pluck("data")
+  
+  tibble() %>%
+    ggplot() +
+    labs(x = "", y = "", title = "Intersection of Components Needed for Casting Spells") +
+    ggforce::geom_ellipse(
+      data = data$ellipses %>% as_tibble(rownames = "Set"),
+      mapping = aes(x0 = h, y0 = k, a = a, b = b, angle = 0, 
+                    fill = Set),
+      alpha = 0.5
+    ) +
+    geom_text(
+      data = {
+        data$centers %>%
+          mutate(
+            label = labels %>%
+              map2(quantities, ~ {
+                if (!is.na(.x) && !is.na(.y) && show_labels) {
+                  paste0(.x, "\n", sprintf(.y, fmt = "%.2g"))
+                } else if (!is.na(.x) && show_labels) {
+                  .x
+                } else if (!is.na(.y)) {
+                  .y
+                } else {
+                  ""
+                }
+              })
+          )
+      },
+      mapping = aes(x = x, y = y, label = label)
+    ) +
+    theme(panel.grid = element_blank()) +
+    coord_fixed() +
+    scale_fill_hue() +
+    guides(fill = guide_legend(title = "Components Needed"))
 }
 

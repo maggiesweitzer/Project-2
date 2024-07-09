@@ -49,7 +49,7 @@ get_dnd_api <- function(category = "monsters"){
   dnd_binded_tbl <- map_df(urls, get_url)
 }
 
-dnd_data_tbl <- get_dnd_api("monsters")
+dnd_data_tbl <- get_dnd_api("spells")
 ```
 
 
@@ -96,8 +96,8 @@ This code will change schools to all lowercase to reduce redundancy, convert sch
 
 ```{r}
 
-dnd_binded_tbl$school <- tolower(dnd_binded_tbl$school)
-dnd_spells_tbl <- dnd_binded_tbl |>
+dnd_data_tbl$school <- tolower(dnd_data_tbl$school)
+dnd_spells_tbl <- dnd_data_tbl |>
   mutate(schoolF = as.factor(school),
          componentsM = gsub('M', 'Material', components),
          componentsMS = gsub('S', 'Somatic', componentsM),
@@ -138,8 +138,8 @@ library(eulerr)
 library(ggforce)
 
 components <- dnd_spells_tbl |>
-  filter(spell_level > 0, 
-         spell_level < 2) |>
+  filter(spell_level > 5, 
+         spell_level < 8) |>
   group_by(components_recode) |>
   summarize(count = n())
 
@@ -184,6 +184,7 @@ ggeulerr <- function(combinations = components_vec, show_quantities = TRUE, show
     scale_fill_hue() +
     guides(fill = guide_legend(title = "Components Needed") 
     )
+  print(data$centers)
 }
 
 ggeulerr()
@@ -214,9 +215,9 @@ dnd_spells_tbl |>
   pivot_wider(names_from = level_int, values_from = count)
 
 dnd_spells_tbl |>
-  group_by(level_int, schoolF) |>
+  group_by(spell_level, schoolF) |>
   summarize(count = n()) |>
-  pivot_wider(names_from = level_int, values_from = count)
+  pivot_wider(names_from = spell_level, values_from = count)
 ```
 ### Creating frequency tables for categorical monsters variables
 
@@ -300,6 +301,39 @@ g + geom_bar() +
 
 ## Data Exploration Tab
 
+```{r}
+class_tbl <- dnd_spells_tbl |>
+  group_by(spell_level) |>
+  summarize(across(where(is.logical),
+                   list("sum" = ~ sum(.x, na.rm = TRUE)),
+                   .names = "{.col}"))
+  
+  class_tbl <- dnd_spells_tbl |>
+  filter(spell_level > 8) |>
+  group_by(schoolF) |>
+  summarize(across(where(is.logical), 
+                   list("sum" = ~ sum(.x, na.rm = TRUE)), 
+                   .names = "{.col}")) 
+
+  ggplot(data = dnd_spells_tbl |>
+         group_by(spell_level) |>
+         summarize(across(where(is.logical),
+                          list("sum" = ~ sum(.x, na.rm = TRUE)), .names = "{.col}"))) +
+  geom_bar(stat = "identity") +
+    aes(x = "spell_level", y = "count()")
+
+  
+  ggplot(data = class_tbl |>
+           select("spell_level", "Bard")) +
+    aes(x = as.factor(spell_level), y = count) +
+    geom_bar(stat = "identity")
+  
+  
+  cor_val <- dnd_data_tbl |>
+         summarize(cor_val = cor(spell_level, target_range_sort))
+    #pull(cor_val) |>
+       paste0("The correlation between spell_level and target_range_sort is ", round(cor_val, 2))
+```
 
 
 
