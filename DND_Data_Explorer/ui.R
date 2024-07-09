@@ -23,7 +23,7 @@ tabsetPanel(
              column(1),
              column(10, h4("This app will allow you to query the", a(href="https://api.open5e.com/v1/", "Dungeons & Dragons API"), "to explore data on monsters or spells. First, choose which data you want to explore (monsters or spells) using the Data Download tab. This will query the selected API endpoint and store the resulting data set as a .csv file."), 
                     br(),
-                    h4("Then, choose the corresponding Data Exploration tab to view the data!")),
+                    h4("Then, choose the corresponding Data Exploration tab to view the data! For example, Data Exploration - Monsters will allow you to explore how different monster types vary in terms of alignment, size or other characteristics, and how different traits are related to one another. Data Exploration - Spells will show you the number of spells available for different character classes depending on the spell level and/or school. You can also find out about how often spells at different levels require somatic gestures, verbal incantations, material objects, or a combination of these to cast!")),
            column(1))),
   
   #Create data download tab, add title and descriptive text, followed by selectInput box to choose datatype and Download button
@@ -111,7 +111,7 @@ tabsetPanel(
            sidebarLayout(
              sidebarPanel(
                fluidRow(h5("You can use tables or plots to explore requirements for spells of different levels"),
-                        radioButtons("choice", "Choose the Data to Display", choices = list("Contingency table of spell count by character class" = "table", "Venn diagram of components needed for spell casting" = "venn", "Bar plots of spells at each level within each school" = "bar2"), selected = "")
+                        radioButtons("choice", "Choose the Data to Display", choices = list("Contingency table of spell count by character class and school" = "table", "Venn diagram of components needed for spell casting" = "venn", "Bar plots of spells at each level within each school" = "bar2"), selected = "")
                ),
              fluidRow(conditionalPanel(
                condition = "input.choice == 'table'",
