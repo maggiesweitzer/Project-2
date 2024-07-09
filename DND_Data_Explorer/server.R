@@ -21,6 +21,13 @@ shinyServer(function(input, output, session) {
      data_tbl()
      })
    
+   #save downloaded data as a csv
+   output$download <- downloadHandler(
+     filename = function(){"dnd_data.csv"}, 
+     content = function(fname){
+       write.csv(thedata(), fname)
+     })
+   
 ##Rendering plots for Data Exploration - Monsters tab
    #render bar plot if user selects this, with fill = user selection of factor
    output$bar <- renderPlot({
